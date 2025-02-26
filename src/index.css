@@ -135,3 +135,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #718096; /* Slightly lighter when hovered */
 }
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
