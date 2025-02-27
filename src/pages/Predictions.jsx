@@ -42,6 +42,9 @@ const FloodPredictionDashboard = () => {
   const intervalRef = useRef(null);
   const [longitude, setLongitude] = useState(12.9716);
   const [latitude, setLatitude] = useState(77.5946);
+  const [isOn, setIsOn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [preview, setPreview] = useState(null); // Image preview state
 
   useEffect(() => {
     return () => clearInterval(intervalRef.current);
@@ -57,6 +60,54 @@ const FloodPredictionDashboard = () => {
       clearInterval(intervalRef.current);
     }
   };
+
+  const fetchPrediction = async () => {
+    if (!image || !latitude || !longitude) {
+        console.error("Please ensure the image, latitude, and longitude are set.");
+        return;
+    }
+
+    setIsLoading(true);
+
+    const formData = new FormData();
+    formData.append("image", image);
+    formData.append("request", JSON.stringify({ lon: longitude, lat: latitude }));
+
+    try {
+      const predictionResponse = await axios.post("http://localhost:8000/predict-flood/", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const data = predictionResponse.data;
+      setPrediction({
+        floodRisk: data.prediction.flood_risk,
+        reason: data.prediction.reason,
+        drainBlockageProb: data.drain_blockage_prob,
+        drainBlockage: data.drain_blockage,
+      });
+
+      setWeather({
+        temp: data.weather_data.temp,
+        appTemp: data.weather_data.app_temp,
+        humidity: data.weather_data.rh,
+        windSpeed: data.weather_data.wind_spd,
+        uv: data.weather_data.uv,
+        pressure: data.weather_data.pres,
+        visibility: data.weather_data.vis,
+        weatherCondition: data.weather_prediction.weather,
+        precipitation: data.weather_prediction.precip,
+        airState: getAirState(data.weather_data.rh, data.weather_data.dewpt),
+        windDirection: getWindDirection(data.weather_data.wind_dir),
+        cloudCoverage: getCloudCoverage(data.weather_data.clouds),
+        timeOfDay: getTimeOfDay(data.weather_data.hour),
+      });
+
+      setWeatherShapData(data.weather_shap_value || []);
+    } catch (error) {
+        console.error("Error fetching prediction:", error);
+    } finally {
+        setIsLoading(false);
+    }
+};
 
   const fetchData = async () => {
     try {
@@ -121,6 +172,14 @@ const FloodPredictionDashboard = () => {
     ],
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        setImage(file);
+        setPreview(URL.createObjectURL(file)); // Show image preview
+    }
+};
+
   return (
     <motion.div 
       className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-500 to-indigo-700 p-6"
@@ -134,6 +193,35 @@ const FloodPredictionDashboard = () => {
         transition={{ type: "spring", stiffness: 150 }}
       >
         <h1 className="text-2xl font-bold text-center text-gray-800 mb-4">🌊 Flood Prediction</h1>
+         
+        <div className="flex justify-center items-center gap-6 my-4">
+          <span className={`font-semibold ${!isOn ? 'text-gray-900 text-lg font-bold bg-gray-200' : 'text-gray-800 text-base'}`}>
+            Real Time
+          </span>
+          <div 
+            className={`w-16 h-8 flex items-center bg-gray-300 dark:bg-gray-600 rounded-full p-1 cursor-pointer transition-all duration-300 ${isOn ? 'bg-green-500' : 'bg-blue-500'}`}
+            onClick={() => {
+              setIsOn(!isOn);
+              setImage(null);
+              setPrediction(null);
+              setWeather(null);
+              setWeatherShapData([]);
+              setPreview(null);
+            }}
+          >
+            <motion.div
+              className="w-6 h-6 bg-white rounded-full shadow-md"
+              layout
+              initial={{ x: 0 }}
+              animate={{ x: isOn ? 32 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </div>
+           <span className={`font-semibold ${!isOn ? 'text-gray-800 text-base' : 'text-gray-900 text-lg font-bold bg-gray-200'}`}>
+             Manual
+           </span>
+        </div>
+
 
         <div className="mb-4">
           <label className="block text-gray-700 font-semibold mb-2">Longitude:</label>
@@ -157,20 +245,65 @@ const FloodPredictionDashboard = () => {
           />
         </div>
 
-        <motion.button
-          onClick={handleSubmit}
-          className={`w-full py-2 text-white font-bold rounded-md flex items-center justify-center gap-2
-            transition duration-100 ${!streaming ? "bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 200 }}
-        >
-          {!streaming ? "Stop Streaming" : "Start Streaming"}
-        </motion.button>
+        {!isOn ? (
+          <motion.button
+            onClick={handleSubmit}
+            className={`w-full py-2 text-white font-bold rounded-md flex items-center justify-center gap-2
+              transition duration-100 ${!streaming ? "bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 200 }}
+          >
+            {!streaming ? "Stop Streaming" : "Start Streaming"}
+          </motion.button>
+        ) : (
+          <>
+            <div className="mb-4">
+              <label className="block text-gray-700 font-semibold mb-2">Upload an Image:</label>
+              <input 
+                type="file" 
+                onChange={handleImageChange} 
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+
+            <motion.button
+              onClick={fetchPrediction}
+              disabled={!image || isLoading}
+              className={`w-full py-2 text-white font-bold rounded-md flex items-center justify-center gap-2
+                transition duration-300 ${
+                  isLoading 
+                    ? "bg-green-400 cursor-wait"  // Light blue when loading
+                    : image 
+                      ? "bg-green-600 hover:bg-green-700"  // Dark blue normally
+                      : "bg-gray-400 cursor-not-allowed"  // Gray when disabled
+                }`}
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 200 }}
+            >
+              {isLoading ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25"></circle>
+                    <path d="M22 12a10 10 0 0 1-10 10" strokeOpacity="1"></path>
+                  </svg>
+                  Loading...
+                </>
+              ) : (
+                "Get Prediction"
+              )}
+            </motion.button>
+          </>
+        )}
 
         {/* Display Latest Image */}
         {image && (
           <motion.div className="mt-4" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ duration: 0.5 }}>
+            {isOn && preview && (
+              <img src={preview} alt="Latest Flood Image" className="w-full rounded-md shadow" />
+            )}
+            {!isOn && (
             <img src={image} alt="Latest Flood Image" className="w-full rounded-md shadow" />
+            )}
           </motion.div>
         )}
 
