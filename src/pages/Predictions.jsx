@@ -5,6 +5,23 @@ import { Bar } from "react-chartjs-2";
 import { CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar as RechartBar } from "recharts";
 import { motion } from "framer-motion";
 import "chart.js/auto";
+import { MapPin } from "lucide-react";
+
+function getCurrentLocation(callback) {
+  if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+          (position) => {
+              const { latitude, longitude } = position.coords;
+              callback(null, { latitude, longitude });
+          },
+          (error) => {
+              callback(error.message, null);
+          }
+      );
+  } else {
+      callback("Geolocation is not supported by this browser.", null);
+  }
+}
 
 // Utility functions (same as previous code)
 const getAirState = (rh, dewpt) => {
@@ -199,7 +216,7 @@ const FloodPredictionDashboard = () => {
             Real Time
           </span>
           <div 
-            className={`w-16 h-8 flex items-center bg-gray-300 dark:bg-gray-600 rounded-full p-1 cursor-pointer transition-all duration-300 ${isOn ? 'bg-green-500' : 'bg-blue-500'}`}
+            className={`w-16 h-8 flex items-center bg-blue-500 dark:bg-gray-600 rounded-full p-1 cursor-pointer transition-all duration-300 ${isOn ? 'bg-green-500' : 'bg-blue-500'}`}
             onClick={() => {
               setIsOn(!isOn);
               setImage(null);
@@ -207,6 +224,8 @@ const FloodPredictionDashboard = () => {
               setWeather(null);
               setWeatherShapData([]);
               setPreview(null);
+              setStreaming(true);
+              clearInterval(intervalRef.current);
             }}
           >
             <motion.div
@@ -244,6 +263,22 @@ const FloodPredictionDashboard = () => {
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        <button className="inline-flex items-center text-white bg-blue-600 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
+        onClick={() => {
+          getCurrentLocation((error, location) => {
+            if (error) {
+                console.error("Error:", error);
+            } else {
+                setLatitude(location.latitude);
+                setLongitude(location.longitude);
+            }
+          });
+        }}
+        >
+          <MapPin className="w-5 h-5 mr-2" />
+          Use Current Location
+        </button>
 
         {!isOn ? (
           <motion.button
