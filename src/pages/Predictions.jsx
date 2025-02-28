@@ -12,6 +12,7 @@ function getCurrentLocation(callback) {
       navigator.geolocation.getCurrentPosition(
           (position) => {
               const { latitude, longitude } = position.coords;
+            console.log(latitude);
               callback(null, { latitude, longitude });
           },
           (error) => {
