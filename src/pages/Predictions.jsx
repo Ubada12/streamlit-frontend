@@ -207,6 +207,8 @@ const FloodPredictionDashboard = () => {
               setWeather(null);
               setWeatherShapData([]);
               setPreview(null);
+              setStreaming(false);
+              clearInterval(intervalRef.current);
             }}
           >
             <motion.div
