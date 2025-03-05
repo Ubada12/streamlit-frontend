@@ -7,13 +7,105 @@ import { motion } from "framer-motion";
 import "chart.js/auto";
 import { MapPin } from "lucide-react";
 
-function getCurrentLocation(callback) {
+async function sendEmail(address, latitude, longitude, risk, temperature, wind_speed, wind_direction, precipitation, humidity, condition, cloud_coverage, uv_index, pressure, air_state, visibility) {
+  const currentTime = new Date();
+
+  // Extract the individual components
+  const day = String(currentTime.getDate()).padStart(2, '0');
+  const month = String(currentTime.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+  const year = currentTime.getFullYear();
+  const hours = String(currentTime.getHours()).padStart(2, '0');
+  const minutes = String(currentTime.getMinutes()).padStart(2, '0');
+  const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+
+  // Format the date and time
+  const Timestamp = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+
+  console.log(Timestamp);
+
+  const jsonPayload = {
+      to: [{ name: "farhan shaikh", email: "farhanshaikh9266@gmail.com" }],
+      variables: { address, latitude, longitude, risk, temperature, wind_speed, wind_direction, precipitation, humidity, condition, cloud_coverage, uv_index, pressure, air_state, visibility, Timestamp },
+      from: { name: "Flood Monitoring System", email: "no-reply@ubadaa.site" },
+      domain: "ubadaa.site",
+      template_id: "template_05_03_2025_17_03_5"
+  };
+  console.log(jsonPayload);
+
+  try {
+    const response = await fetch("http://localhost:8000/send-email", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(jsonPayload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Email Sent:', data);
+
+     // Check for the success status in the response data
+     if (data.status === "success" && !data.hasError) {
+      return true; // Email successfully sent
+    } else {
+      console.error('Error in email sending:', data.errors);
+      return false; // Error in sending email
+    }
+  } catch (error) {
+    console.error('Error While Sending Email:', error);
+    return false; // Error in sending email 
+  }
+}
+
+const locations = [
+  { name: "Colaba", lat: 18.9067, lon: 72.8147 },
+  { name: "Fort", lat: 18.9320, lon: 72.8355 },
+  { name: "Bandra", lat: 19.0544, lon: 72.8402 },
+  { name: "Andheri", lat: 19.1197, lon: 72.8468 },
+  { name: "Juhu", lat: 19.1076, lon: 72.8266 },
+  { name: "Powai", lat: 19.1177, lon: 72.9046 },
+  { name: "Malad", lat: 19.1860, lon: 72.8484 },
+  { name: "Borivali", lat: 19.2290, lon: 72.8573 },
+  { name: "Navi Mumbai", lat: 19.0330, lon: 73.0297 },
+  { name: "Thane", lat: 19.2183, lon: 72.9781 }
+];
+
+function getRandomLocation() {
+  const randomIndex = Math.floor(Math.random() * locations.length);
+  return locations[randomIndex]; // Returns a random predefined location
+}
+
+function getCurrentLocation(callback, longitude, latitude) {
   if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
+<<<<<<< HEAD
           (position) => {
               const { latitude, longitude } = position.coords;
             console.log(latitude);
               callback(null, { latitude, longitude });
+=======
+          async (position) => {
+             
+
+              try {
+                  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+                  const data = await response.json();
+                  
+                  if (data && data.address) {
+                    console.log(data);
+                      const address = data.display_name;
+                      callback(null, { latitude, longitude, address });
+                  } else {
+                      callback("Location not found", null);
+                  }
+              } catch (error) {
+                  callback("Error fetching location data", null);
+              }
+>>>>>>> 3bf9153 (Your commit message)
           },
           (error) => {
               callback(error.message, null);
@@ -63,10 +155,15 @@ const FloodPredictionDashboard = () => {
   const [isOn, setIsOn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [preview, setPreview] = useState(null); // Image preview state
+  const [address, setAddress] = useState(null);
 
   useEffect(() => {
     return () => clearInterval(intervalRef.current);
   }, []);
+
+  useEffect(() => {
+    console.log("Updated address:", address);
+  }, [address]); // Runs when `address` changes
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -129,6 +226,11 @@ const FloodPredictionDashboard = () => {
 
   const fetchData = async () => {
     try {
+      const locationss= getRandomLocation();
+      setLatitude(locationss.lat);
+      setLongitude(locationss.lon);
+      
+      console.log(locationss);
       const listResponse = await axios.get("http://localhost:8000/api/get-latest-s3-image");
       if (listResponse.data.imageBase64) {
         const imageBase64 = listResponse.data.imageBase64;
@@ -141,7 +243,7 @@ const FloodPredictionDashboard = () => {
 
         const formData = new FormData();
         formData.append("image", file, "image.jpg");
-        formData.append("request", JSON.stringify({ lon: longitude, lat: latitude }));
+        formData.append("request", JSON.stringify({ lon: locationss.lon, lat: locationss.lat }));
 
         const predictionResponse = await axios.post("http://localhost:8000/predict-flood/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -172,6 +274,53 @@ const FloodPredictionDashboard = () => {
         });
 
         setWeatherShapData(data.weather_shap_value || []);
+
+        let locationData = null;
+
+        const location = (callback) => {
+          getCurrentLocation((error, data) => {
+            if (error) {
+              console.error("Error:", error);
+            } else {
+              locationData = data; // Store it in the variable
+              callback(data);
+            }
+          }, locationss.lon, locationss.lat);
+        };
+
+        // Example usage
+        location(async (payload) => {
+          console.log("Stored location data:", payload); // Now it holds the correct data
+          setAddress({city: locationss.name, location: payload.address});
+          // Now, use locationData safely
+          if (data.drain_blockage === 2 || data.drain_blockage === 0) {
+            const res = await sendEmail(
+              payload.address, 
+              locationss.lat, 
+              locationss.lon, 
+              data.prediction.flood_risk, 
+              data.weather_data.temp, 
+              data.weather_data.wind_spd, 
+              getWindDirection(data.weather_data.wind_dir), 
+              data.weather_prediction.precip, 
+              data.weather_data.rh, 
+              data.weather_prediction.weather, 
+              getCloudCoverage(data.weather_data.clouds), 
+              data.weather_data.uv, 
+              data.weather_data.pres, 
+              getAirState(data.weather_data.rh, data.weather_data.dewpt), 
+              data.weather_data.vis
+            );
+
+            if (res) {
+              console.log("Email Sent Successfully");
+            } else {
+              console.error("Error in sending email");
+              alert("Error in sending email");
+            }
+          }
+        });
+
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -250,6 +399,7 @@ const FloodPredictionDashboard = () => {
             value={longitude}
             onChange={(e) => setLongitude(e.target.value)}
             required
+            readOnly={!isOn}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -261,25 +411,10 @@ const FloodPredictionDashboard = () => {
             value={latitude}
             onChange={(e) => setLatitude(e.target.value)}
             required
+            readOnly={!isOn}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           />
         </div>
-
-        <button className="inline-flex items-center text-white bg-blue-600 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
-        onClick={() => {
-          getCurrentLocation((error, location) => {
-            if (error) {
-                console.error("Error:", error);
-            } else {
-                setLatitude(location.latitude);
-                setLongitude(location.longitude);
-            }
-          });
-        }}
-        >
-          <MapPin className="w-5 h-5 mr-2" />
-          Use Current Location
-        </button>
 
         {!isOn ? (
           <motion.button
@@ -403,6 +538,12 @@ const FloodPredictionDashboard = () => {
             <div className="mt-4">
               <p className="text-lg text-center">Drain Blockage Prediction: {prediction.drainBlockageProb}%</p>
             </div>
+
+            <div className="mt-6 p-4 bg-gray-100 rounded-lg shadow-md text-center">
+  <p className="text-2xl font-bold text-blue-600">📍 City: {address?.city}</p>
+  <p className="text-xl text-gray-800 mt-2">🏠 Address: {address?.location}</p>
+</div>
+
           </motion.div>
         )}
         
@@ -483,6 +624,9 @@ const FloodPredictionDashboard = () => {
                <div className="flex justify-center items-center">
                  {weather.timeOfDay === 'Morning' && (
                    <FaSun size={30} className="text-yellow-500" />
+                 )}
+                 {weather.timeOfDay === 'Afternoon' && (
+                    <FaSun size={30} className="text-yellow-400" />
                  )}
                  {weather.timeOfDay === 'Night' && (
                    <FaMoon size={30} className="text-gray-600" />
