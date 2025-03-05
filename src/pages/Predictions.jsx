@@ -82,12 +82,6 @@ function getRandomLocation() {
 function getCurrentLocation(callback, longitude, latitude) {
   if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-<<<<<<< HEAD
-          (position) => {
-              const { latitude, longitude } = position.coords;
-            console.log(latitude);
-              callback(null, { latitude, longitude });
-=======
           async (position) => {
              
 
@@ -105,7 +99,6 @@ function getCurrentLocation(callback, longitude, latitude) {
               } catch (error) {
                   callback("Error fetching location data", null);
               }
->>>>>>> 3bf9153 (Your commit message)
           },
           (error) => {
               callback(error.message, null);
